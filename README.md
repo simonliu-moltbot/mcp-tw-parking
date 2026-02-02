@@ -23,7 +23,7 @@ pip install -r requirements.txt
 {
   "mcpServers": {
     "tw-parking": {
-      "command": "/Users/simonliuyuwei/clawd/projects/mcp-tw-parking/.venv/bin/python",
+      "command": "/Users/simonliuyuwei/clawd/projects/mcp-tw-parking/.venv/bin/python3.13",
       "args": [
         "/Users/simonliuyuwei/clawd/projects/mcp-tw-parking/src/server.py"
       ]
@@ -34,7 +34,7 @@ pip install -r requirements.txt
 
 ### 3. 設定 Dive
 - **Type**: `stdio`
-- **Command**: `/Users/simonliuyuwei/clawd/projects/mcp-tw-parking/.venv/bin/python`
+- **Command**: `/Users/simonliuyuwei/clawd/projects/mcp-tw-parking/.venv/bin/python3.13`
 - **Args**: `/Users/simonliuyuwei/clawd/projects/mcp-tw-parking/src/server.py`
 
 ## 📊 提供的工具
