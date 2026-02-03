@@ -1,144 +1,55 @@
+"""
+Taipei Parking MCP Server using FastMCP.
+Supports both STDIO and Streamable HTTP transport modes.
+"""
 import sys
 import os
+import argparse
 import asyncio
-from mcp.server.models import InitializationOptions
-from mcp.server import NotificationOptions, Server
-from mcp.server.stdio import stdio_server
-import mcp.types as types
 
-# Import Hack
+# Add current directory to path so we can import 'logic'
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-try:
-    from logic import ParkingLogic
-except ImportError as e:
-    print(f"Error importing logic: {e}", file=sys.stderr)
-    class ParkingLogic:
-        def __init__(self): pass
-        def get_parking_by_area(self, area): return []
-        def search_parking(self, keyword): return []
-        def get_full_status(self, parking_id): return None
-        def get_area_availability(self, area): return []
+from fastmcp import FastMCP
+import logic
 
-server = Server("mcp-tw-parking")
-logic = ParkingLogic()
+# Initialize FastMCP
+mcp = FastMCP("mcp-tw-parking")
 
-@server.list_tools()
-async def handle_list_tools() -> list[types.Tool]:
-    return [
-        types.Tool(
-            name="list_parking_by_area",
-            description="列出特定行政區（如：信義區、大安區）的停車場列表與即時剩餘位數。",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "area": {"type": "string", "description": "行政區名稱，例如 '信義區'"},
-                },
-                "required": ["area"],
-            },
-        ),
-        types.Tool(
-            name="search_parking",
-            description="關鍵字搜尋停車場名稱或地址。",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "keyword": {"type": "string", "description": "搜尋關鍵字"},
-                },
-                "required": ["keyword"],
-            },
-        ),
-        types.Tool(
-            name="get_parking_details",
-            description="獲取特定停車場的詳細資訊，包括收費標準、剩餘位數、充電樁等。",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "parking_id": {"type": "string", "description": "停車場 ID"},
-                },
-                "required": ["parking_id"],
-            },
-        ),
-    ]
+@mcp.tool()
+async def get_all_parking_lots() -> str:
+    """
+    獲取台北市所有公有停車場的即時剩餘車位資訊。
+    """
+    data = await logic.fetch_parking_data()
+    return str(data)
 
-@server.call_tool()
-async def handle_call_tool(
-    name: str, arguments: dict | None
-) -> list[types.TextContent]:
-    if not arguments:
-        return [types.TextContent(type="text", text="Error: Missing arguments")]
+@mcp.tool()
+async def search_parking_by_name(keyword: str) -> str:
+    """
+    依據關鍵字搜尋特定的停車場車位。
+    Args:
+        keyword: 停車場名稱關鍵字，例如「信義」。
+    """
+    data = await logic.search_parking(keyword)
+    return str(data)
 
-    try:
-        if name == "list_parking_by_area":
-            area = arguments.get("area", "")
-            results = logic.get_area_availability(area)
-            if not results:
-                return [types.TextContent(type="text", text=f"找不到 {area} 的停車場資訊。")]
-            
-            # Format output
-            lines = [f"### {area} 停車場即時狀態"]
-            for p in results:
-                lines.append(f"- **{p['name']}**")
-                lines.append(f"  - 剩餘位數: {p['available_car']} / {p['total_car']}")
-                lines.append(f"  - 地址: {p['address']}")
-                lines.append(f"  - 收費: {p['pay_info']}")
-            
-            return [types.TextContent(type="text", text="\n".join(lines))]
+def main():
+    parser = argparse.ArgumentParser(description="Taipei Parking MCP Server")
+    parser.add_argument("--mode", choices=["stdio", "http"], default="stdio", help="Transport mode")
+    parser.add_argument("--port", type=int, default=8000, help="HTTP port (only for http mode)")
+    args = parser.parse_args()
 
-        elif name == "search_parking":
-            keyword = arguments.get("keyword", "")
-            results = logic.search_parking(keyword)
-            if not results:
-                return [types.TextContent(type="text", text=f"找不到關鍵字 '{keyword}' 相關的停車場。")]
-            
-            lines = [f"### 搜尋結果: {keyword}"]
-            for p in results:
-                lines.append(f"- {p['name']} (ID: {p['id']}) - {p['address']}")
-            
-            return [types.TextContent(type="text", text="\n".join(lines))]
-
-        elif name == "get_parking_details":
-            pid = arguments.get("parking_id", "")
-            p = logic.get_full_status(pid)
-            if not p:
-                return [types.TextContent(type="text", text=f"找不到 ID 為 {pid} 的停車場詳細資訊。")]
-            
-            lines = [f"## {p.get('name')} 詳情"]
-            lines.append(f"- **區域**: {p.get('area')}")
-            lines.append(f"- **地址**: {p.get('address')}")
-            lines.append(f"- **電話**: {p.get('tel')}")
-            lines.append(f"- **收費**: {p.get('payex')}")
-            lines.append(f"- **即時剩餘位數**:")
-            lines.append(f"  - 汽車: {p.get('availablecar', 'N/A')} / {p.get('totalcar')}")
-            lines.append(f"  - 機車: {p.get('availablemotor', 'N/A')} / {p.get('totalmotor')}")
-            lines.append(f"- **設施**: 充電樁 x {p.get('ChargingStation', '0')}, 身障車位 x {p.get('Handicap_First', '0')}")
-            
-            return [types.TextContent(type="text", text="\n".join(lines))]
-
-        else:
-            return [types.TextContent(type="text", text=f"Unknown tool: {name}")]
-
-    except Exception as e:
-        print(f"Error in tool {name}: {e}", file=sys.stderr)
-        return [types.TextContent(type="text", text=f"發生錯誤: {str(e)}")]
-
-async def main():
-    async with stdio_server() as (read_stream, write_stream):
-        await server.run(
-            read_stream,
-            write_stream,
-            InitializationOptions(
-                server_name="mcp-tw-parking",
-                server_version="1.0.0",
-                capabilities=server.get_capabilities(
-                    notification_options=NotificationOptions(),
-                ),
-            ),
+    if args.mode == "stdio":
+        mcp.run()
+    else:
+        print(f"Starting FastMCP in streamable-http mode on port {args.port}...", file=sys.stderr)
+        mcp.run(
+            transport="streamable-http",
+            host="0.0.0.0",
+            port=args.port,
+            path="/mcp"
         )
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except Exception as e:
-        print(f"Server crashed during startup: {e}", file=sys.stderr)
-        sys.exit(1)
+    main()

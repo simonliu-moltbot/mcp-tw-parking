@@ -1,55 +1,45 @@
-# Taiwan Taipei Parking Helper MCP Server (mcp-tw-parking)
+# 🅿️ 台北市停車助手 (mcp-tw-parking)
 
-一個提供台北市停車場即時資訊的 MCP Server。支援查詢特定行政區的停車場位數、關鍵字搜尋以及詳細收費資訊。
+這是一個基於 **FastMCP** 框架開發的 Model Context Protocol (MCP) 伺服器，支援查詢台北市公有停車場的即時剩餘車位資訊。
 
-## 🇹🇼 功能
-- **區域查詢**: 列出如「信義區」、「大安區」等區域的所有停車場與即時剩餘位數。
-- **關鍵字搜尋**: 透過名稱或地址搜尋停車場。
-- **詳細資訊**: 獲取停車場的 ID、地址、電話、收費標準、剩餘汽車/機車位數、充電樁數量等。
+## ✨ 特點
+- **雙傳輸模式**：同時支援 `stdio` (本機) 與 `streamable-http` (遠端/Docker) 模式。
+- **即時數據**：串接北市府官方即時 JSON API。
+- **關鍵字搜尋**：快速找尋特定區域或名稱的停車場。
 
-## 🛠 安裝與設定
+---
 
-### 1. 建立虛擬環境與安裝依賴
+## 🚀 傳輸模式 (Transport Modes)
+
+### 1. 本機模式 (STDIO) - 預設
+適合與 Claude Desktop 搭配使用。
 ```bash
-cd projects/mcp-tw-parking
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+python src/server.py --mode stdio
 ```
 
-### 2. 設定 Claude Desktop
-在 `claude_desktop_config.json` 中加入：
+### 2. 遠端模式 (HTTP)
+適合 Docker 部署與遠端存取。
+```bash
+python src/server.py --mode http --port 8000
+```
+- **服務 URL**: `http://localhost:8000/mcp`
+
+---
+
+## 🔌 客戶端配置範例
+
+### Claude Desktop (STDIO)
 ```json
 {
   "mcpServers": {
     "tw-parking": {
-      "command": "/Users/simonliuyuwei/clawd/projects/mcp-tw-parking/.venv/bin/python3.13",
-      "args": [
-        "/Users/simonliuyuwei/clawd/projects/mcp-tw-parking/src/server.py"
-      ]
+      "command": "python",
+      "args": ["/絕對路徑/src/server.py", "--mode", "stdio"]
     }
   }
 }
 ```
 
-### 3. 設定 Dive
-- **Type**: `stdio`
-- **Command**: `/Users/simonliuyuwei/clawd/projects/mcp-tw-parking/.venv/bin/python3.13`
-- **Args**: `/Users/simonliuyuwei/clawd/projects/mcp-tw-parking/src/server.py`
-
-## 📊 提供的工具
-
-### `list_parking_by_area(area)`
-列出行政區停車場狀態。
-- `area`: 行政區名稱 (如: '信義區')。
-
-### `search_parking(keyword)`
-關鍵字搜尋停車場。
-- `keyword`: 名稱或地址。
-
-### `get_parking_details(parking_id)`
-獲取詳細資訊。
-- `parking_id`: 停車場 ID。
-
-## 📅 資料來源
-- [臺北市政府資料開放平台 - 停車場即時資訊](https://data.taipei/)
+### Dive / HTTP 客戶端
+- **Type**: `streamable`
+- **URL**: `http://localhost:8000/mcp`
